@@ -12,8 +12,8 @@ import (
 
 /*
 * @Author: zouyx
-* @Email: zouyx@knowsec.com
-* @Date:   2024/11/6 下午4:40
+* @Email: 1003941268@qq.com
+* @Date:   2024/11/7 上午9:50
 * @Package:
  */
 
@@ -73,11 +73,12 @@ func Test_downloader_Download(t *testing.T) {
 		filename string
 	}
 	tests := []struct {
-		name       string
-		fields     fields
-		args       args
-		wantWriter string
-		wantErr    bool
+		name           string
+		fields         fields
+		args           args
+		wantWriter     string
+		wantFileSuffix string
+		wantErr        bool
 	}{
 		// TODO: Add test cases.
 	}
@@ -91,13 +92,16 @@ func Test_downloader_Download(t *testing.T) {
 				md5:        tt.fields.md5,
 			}
 			writer := &bytes.Buffer{}
-			err := d.Download(tt.args.url, tt.args.filename, writer)
+			gotFileSuffix, err := d.Download(tt.args.url, tt.args.filename, writer)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Download() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if gotWriter := writer.String(); gotWriter != tt.wantWriter {
 				t.Errorf("Download() gotWriter = %v, want %v", gotWriter, tt.wantWriter)
+			}
+			if gotFileSuffix != tt.wantFileSuffix {
+				t.Errorf("Download() gotFileSuffix = %v, want %v", gotFileSuffix, tt.wantFileSuffix)
 			}
 		})
 	}
