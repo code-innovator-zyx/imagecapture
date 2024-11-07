@@ -1,5 +1,30 @@
 # `imagecapture` - 图片抓取 工具
 
+<p align="center">
+  <a href="https://github.com/code-innovator-zyx/imagecapture">
+   <img alt="ChopperBot" src="https://github.com/twj666/ChopperBot-Doc/blob/master/img/logo.png?raw=true">
+  </a>
+</p>
+
+<p align="center">
+  <strong>图片捕获器</strong>
+</p>
+
+
+<p align="center">
+  <a href="https://github.com/code-innovator-zyx/wechat-gptbot/blob/main/README.md">
+    <img src="https://img.shields.io/badge/文档-简体中文-blue.svg" alt="简体中文文档" />
+  </a>
+
+  <a target="_blank" href='https://github.com/code-innovator-zyx/imagecapture'>
+        <img src="https://img.shields.io/github/stars/code-innovator-zyx/imagecapture.svg" alt="github stars"/>
+   </a>
+
+   <a target="_blank" href=''>
+        <img src="https://img.shields.io/badge/Process-Developing-yellow" alt="github stars"/>
+   </a>
+</p>
+
 `imagecapture` 是一个用于从多个图片搜索引擎（如百度、必应等）中抓取图片 URL 的 Golang
 工具包，提供了便捷的接口来执行图片搜索，支持配置和扩展。您可以根据关键词、图片类型、大小等多种条件来进行搜索。
 
@@ -83,6 +108,8 @@ func main() {
 }
 ```
 
+### 更多测试用例访问 [测试案例]([https://github.com/code-innovator-zyx/imagecapture/tree/main/test])
+
 ## 主要功能
 
 ### SearchImages
@@ -153,6 +180,7 @@ bingCapture := imagecapture.NewBaiduCapture(6) // 最大并发6
 - 本项目不对通过 SDK 抓取的任何内容的版权、合法性等问题承担任何责任。
 
 使用本 SDK 即表示用户同意并遵守上述条款。
+
 # License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
