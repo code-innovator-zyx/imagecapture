@@ -14,6 +14,7 @@ var unSupportSource = []string{"douyin"}
 * @Package:
  */
 type Capture interface {
+	Downloader
 	/**
 	搜索图片： 注 【对图片去重后返回的图片是无序的】
 	@param keywords: 搜索关键词
@@ -22,7 +23,15 @@ type Capture interface {
 	@return: 返回图片 URL 列表和可能的错误
 	*/
 	SearchImages(keyword string, maxNumber int, opts ...Option) ([]string, error)
-	Downloader
+
+	/**
+	分页范围图片搜索：用于分批获取搜索结果
+	@param keyword: 搜索关键词
+	@param callBack: 回调函数，用于处理返回的每一批次图片 URL 列表的函数。如果 `fn` 返回 `false`，则停止后续搜索
+	@param opts: 额外参数，支持多种选项
+	@return: 返回当前页码的图片 URL 列表和可能的错误
+	*/
+	RangeImages(keyword string, callBack func(urls []string) bool, opts ...Option) error
 }
 
 type Option func(*query)
@@ -38,14 +47,14 @@ func newQuery() query {
 // WithCopyright 过滤版权数据
 func WithCopyright() Option {
 	return func(query *query) {
-		query.Set("copyright", "")
+		query.Set("copyright", "1")
 	}
 }
 
 // WithImageSize 搜索的图片大小限制
 func WithImageSize(size ImageSize) Option {
 	return func(query *query) {
-		query.Set("latest", fmt.Sprintf("%d", size))
+		query.Set("z", fmt.Sprintf("%d", size))
 	}
 }
 

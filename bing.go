@@ -63,7 +63,49 @@ func (bc *BingCapture) init() Capture {
 	bc.q.Set("count", "30")
 	return bc
 }
+func (bc *BingCapture) RangeImages(keyword string, callBack func([]string) bool, opts ...Option) error {
+	q := bc.q
+	q.Set("q", keyword)
+	for _, option := range opts {
+		option(&q)
+	}
+	batchSize := 60
+	// 任务超时时间
+	timeout := 3 * time.Second
+	// 必应拿不到这个数据
+	total := 10000
+	var collector = make(chan string, batchSize)
+	for i := 0; i < total; i += batchSize {
+		q.Set("first", strconv.Itoa(i))
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		queryURL := fmt.Sprintf("%s?%s", bc.baseUrl, q.Encode())
+		go func() {
+			defer close(collector)
+			bc.searchBing(ctx, queryURL, collector)
+		}()
+		var urls = make([]string, 0, batchSize)
+	WAIT:
+		for {
+			select {
+			case <-ctx.Done():
+				// 超时了
+				break WAIT
+			case url, ok := <-collector:
+				if !ok {
+					break WAIT
+				}
+				urls = append(urls, url)
+			}
+		}
+		cancel()
+		if !callBack(urls) {
+			return nil
+		}
+		collector = make(chan string, batchSize)
 
+	}
+	return nil
+}
 func (bc *BingCapture) SearchImages(keyword string, maxNumber int, opts ...Option) ([]string, error) {
 	pool, err := ants.NewPool(bc.routines)
 	if err != nil {

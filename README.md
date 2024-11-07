@@ -25,8 +25,7 @@
    </a>
 </p>
 
-`imagecapture` 是一个用于从多个图片搜索引擎（如百度、必应等）中抓取图片 URL 的 Golang
-工具包，提供了便捷的接口来执行图片搜索，支持配置和扩展。您可以根据关键词、图片类型、大小等多种条件来进行搜索。
+`imagecapture` ImageCapture 是一个用 Go 语言编写的库，旨在从百度和必应等搜索引擎捕获图片。它提供了一个接口，用于搜索和下载图片，并支持多种自定义选项。
 
 ## 特性
 
@@ -34,6 +33,7 @@
 - **高级筛选**：支持根据版权、图片尺寸、动图等进行筛选。
 - **并发抓取**：使用并发抓取功能，提高图片抓取效率。
 - **去重功能**：自动去重，确保返回的图片 URL 唯一。
+- **分页迭代功能**：- 支持大批量图片的分页获取。。
 
 ## 安装
 
@@ -108,11 +108,9 @@ func main() {
 }
 ```
 
-> [更多测试案例](https://github.com/code-innovator-zyx/imagecapture/tree/main/test)
-
 ## 主要功能
 
-### SearchImages
+## SearchImages
 
 用于在指定搜索引擎中根据关键词搜索图片。
 
@@ -128,6 +126,32 @@ func main() {
 // 使用 WithImageSize、WithHd 等选项来进行筛选
 images, err := baiduCapture.SearchImages("sunrise", 20, imagecapture.WithHd(), imagecapture.WithImageSize(imagecapture.Medium))
 ```
+
+## RangeImages
+
+用于在指定搜索引擎中根据关键词持续搜索图片。
+
+#### 参数
+
+- `keyword` (string): 搜索关键词。
+- `callBack` (func(string)bool): 每一批图片的回调函数。
+- `opts` (Option): 可选参数，用于指定其他筛选条件（例如图片尺寸、是否高清、动图等）。
+
+#### 示例
+
+```go
+capture.RangeImages("老虎", func (urls []string) bool {
+return true
+})
+if err != nil {
+t.Error(err.Error())
+return
+}
+})
+
+```
+
+> [更多案例](https://github.com/code-innovator-zyx/imagecapture/tree/main/test)
 
 ## 支持的筛选选项
 

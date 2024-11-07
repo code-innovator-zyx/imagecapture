@@ -76,6 +76,26 @@ func Test_Bing(t *testing.T) {
 		fmt.Println("search cost", time.Since(start).Milliseconds())
 		t.Log(len(urls))
 	})
+	t.Run("RangeImages", func(t *testing.T) {
+		var nums int
+		err := capture.RangeImages("老虎", func(urls []string) bool {
+			nums += len(urls)
+			fmt.Println("current get ", len(urls))
+			fmt.Println("total ", nums)
+			for i := range urls {
+				fmt.Println(urls[i])
+			}
+			if nums >= 120 {
+				return false
+			}
+			return true
+		})
+		if err != nil {
+			t.Error(err.Error())
+			return
+		}
+	})
+
 	t.Run("Download filename", func(t *testing.T) {
 		start := time.Now()
 		urls, err := capture.SearchImages("美女", 5)

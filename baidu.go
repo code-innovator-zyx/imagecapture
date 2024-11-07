@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/panjf2000/ants/v2"
 	"io"
@@ -74,6 +75,95 @@ func (bc *BaiduCapture) init() Capture {
 	bc.q.Set("face", "")
 	bc.q.Set("copyright", "") // 版权问题
 	return bc
+}
+
+func (bc *BaiduCapture) RangeImages(keyword string, callBack func([]string) bool, opts ...Option) error {
+	q := bc.q
+	q.Set("word", keyword)
+	for _, option := range opts {
+		option(&q)
+	}
+	batchSize := 60
+	// 任务超时时间
+	timeout := 3 * time.Second
+	total, err := bc.queryTotalNums(q)
+	if err != nil {
+		return err
+	}
+	var collector = make(chan string, batchSize)
+	for i := 0; i < total; i += batchSize {
+		q.Set("pn", strconv.Itoa(i))
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		queryURL := fmt.Sprintf("%s?%s", bc.baseUrl, q.Encode())
+		go func() {
+			defer close(collector)
+			bc.searchBaidu(ctx, queryURL, collector)
+		}()
+		var urls = make([]string, 0, batchSize)
+	WAIT:
+		for {
+			select {
+			case <-ctx.Done():
+				// 超时了
+				break WAIT
+			case url, ok := <-collector:
+				if !ok {
+					break WAIT
+				}
+				urls = append(urls, url)
+			}
+		}
+		cancel()
+		if !callBack(urls) {
+			return nil
+		}
+		collector = make(chan string, batchSize)
+
+	}
+	return nil
+}
+
+// 查询接口能获取的总数量
+func (bc *BaiduCapture) queryTotalNums(q query) (total int, err error) {
+	q.Set("tn", "resultjson_com")
+	queryURL := fmt.Sprintf("https://image.baidu.com/search/acjson?%s", q.Encode())
+	req, err := http.NewRequest("GET", queryURL, nil)
+	if err != nil {
+		return
+	}
+	for k, v := range bc.headers {
+		req.Header.Set(k, v)
+	}
+	resp, err := bc.client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	// 百度的响应数据是经过压缩的
+	reader, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+	defer reader.Close()
+
+	var data bytes.Buffer
+	_, err = io.Copy(&data, reader)
+	if err != nil {
+		return
+	}
+	var jsonData = make(map[string]interface{})
+	err = json.Unmarshal(bytes.ReplaceAll(data.Bytes(), []byte(`'`), []byte(`"`)), &jsonData)
+	if err != nil {
+		return 0, err
+	}
+	if num, ok := jsonData["listNum"]; ok {
+		if numFloat, ok := num.(float64); ok {
+			total = int(numFloat) // 将 float64 转为 int
+		} else {
+			return 0, fmt.Errorf("listNum is not a number")
+		}
+	}
+	return
 }
 
 func (bc *BaiduCapture) SearchImages(keyword string, maxNumber int, opts ...Option) ([]string, error) {
@@ -160,6 +250,7 @@ func (bc *BaiduCapture) searchBaidu(ctx context.Context, url string, collector c
 		var resp *http.Response
 		for {
 			if try >= 3 {
+				fmt.Println("retry max times but err:", err.Error())
 				return
 			}
 			resp, err = bc.client.Do(req)
@@ -169,30 +260,22 @@ func (bc *BaiduCapture) searchBaidu(ctx context.Context, url string, collector c
 			try += 1
 		}
 		// Handling GZIP compressed responses
-		var reader = resp.Body
-		if resp.Header.Get("Content-Encoding") == "gzip" {
-			gzipReader, err := gzip.NewReader(resp.Body)
-			if err != nil {
-				return
-			}
-			reader = gzipReader
-			err = gzipReader.Close()
-			if err != nil {
-				return
-			}
-		}
-		var data bytes.Buffer
-		_, err = io.Copy(&data, reader)
+		defer resp.Body.Close()
+		reader, err := gzip.NewReader(resp.Body)
 		if err != nil {
 			return
 		}
-		err = reader.Close()
+		defer reader.Close()
+		var data bytes.Buffer
+		_, err = io.Copy(&data, reader)
 		if err != nil {
 			fmt.Println("failed to close reader:", err)
+			return
 		}
 		err = resp.Body.Close()
 		if err != nil {
 			fmt.Println("failed to close body")
+			return
 		}
 		pattern := `"objURL":"(.*?)",`
 		re := regexp.MustCompile(pattern)
