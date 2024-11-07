@@ -108,7 +108,7 @@ func main() {
 }
 ```
 
-### 更多测试用例访问 [测试案例]([https://github.com/code-innovator-zyx/imagecapture/tree/main/test])
+> [更多测试案例](https://github.com/code-innovator-zyx/imagecapture/tree/main/test)
 
 ## 主要功能
 
