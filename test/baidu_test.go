@@ -49,7 +49,7 @@ func Test_BaiduCapture(t *testing.T) {
 			t.Error(err.Error())
 			return
 		}
-		t.Log(len(urls))
+		t.Log(urls)
 	})
 
 	t.Run("RangeImages", func(t *testing.T) {

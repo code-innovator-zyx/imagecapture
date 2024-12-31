@@ -3,9 +3,49 @@ package imagecapture
 import (
 	"fmt"
 	"net/url"
+	"strings"
 )
 
-var unSupportSource = []string{"douyin"}
+var defaultFilterRules = []Rule{RULE_DOUYIN, RULES_SINA}
+
+type Rule []string
+
+// 规则校验
+func (r Rule) Check(rawURL string) bool {
+	// 解析 URL
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return false // URL 解析失败
+	}
+	// 获取域名部分
+	host := u.Hostname()
+	// 判断域名是否属于抖音
+	for _, rule := range r {
+		if strings.HasSuffix(host, rule) {
+			return true
+		}
+	}
+	return false
+}
+
+var (
+	//  抖音源
+	RULE_DOUYIN = Rule{
+		"douyin.com",
+		"douyinpic.com",
+		"ixigua.com",
+		"snssdk.com",
+		"amemv.com",
+		"tiktok.com",
+	}
+	// 新浪源
+	RULES_SINA = Rule{
+		"sinaimg.cn",
+		"sinajs.cn",
+		"sina.com.cn",
+		"vip.sina.com",
+	}
+)
 
 /*
 * @Author: zouyx

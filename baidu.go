@@ -211,9 +211,8 @@ SELECT:
 				// 所有goroutine 执行完了，但是数量不够，任然要返回的
 				break SELECT
 			}
-			for _, source := range unSupportSource {
-				if strings.Contains(strings.ToLower(url), source) {
-					fmt.Println("包含抖音的url", url)
+			for _, rules := range defaultFilterRules {
+				if rules.Check(strings.ToLower(url)) {
 					break Next
 				}
 			}
