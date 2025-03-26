@@ -1,14 +1,12 @@
 package test
 
 import (
-	"bytes"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
 	"github.com/code-innovator-zyx/imagecapture"
 	"io"
 	"os"
-	"regexp"
 	"testing"
 	"time"
 )
@@ -20,48 +18,22 @@ import (
 * @Package:
  */
 
-func Test_parsehtml(t *testing.T) {
-	// 打开 HTML 文件
-	file, err := os.Open("./baidu.html")
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
-
-	// 定义正则表达式来匹配 objURL
-	// 定义正则表达式来匹配 imgData 的完整行
-	pattern := `"objURL":"(.*?)",`
-	re := regexp.MustCompile(pattern)
-	var buf bytes.Buffer
-	io.Copy(&buf, file)
-	for _, data := range re.FindAllStringSubmatch(buf.String(), -1) {
-		if len(data) > 1 {
-			fmt.Println(data[1]) // 只输出捕获组，即 URL
-		}
-	}
-}
-
 func Test_BaiduCapture(t *testing.T) {
 	capture := imagecapture.NewBaiduCapture(3)
 	t.Run("SearchImages", func(t *testing.T) {
-		urls, err := capture.SearchImages("美女", 20)
+		urls, err := capture.SearchImages("石英", 5, imagecapture.WithImageSize(imagecapture.ImageSize_LARGE))
 		if err != nil {
 			t.Error(err.Error())
 			return
 		}
-		t.Log(urls)
+		fmt.Println(len(urls))
 	})
 
 	t.Run("RangeImages", func(t *testing.T) {
-		var nums int
+		var images []string
 		err := capture.RangeImages("老虎", func(urls []string) bool {
-			nums += len(urls)
-			fmt.Println("current get ", len(urls))
-			fmt.Println("total ", nums)
-			for i := range urls {
-				fmt.Println(urls[i])
-			}
-			if nums >= 120 {
+			images = append(images, urls...)
+			if len(images) >= 60 {
 				return false
 			}
 			return true
@@ -70,6 +42,7 @@ func Test_BaiduCapture(t *testing.T) {
 			t.Error(err.Error())
 			return
 		}
+		t.Log(len(images))
 	})
 
 	t.Run("Download filename", func(t *testing.T) {

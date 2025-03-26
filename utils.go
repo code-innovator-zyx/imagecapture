@@ -34,7 +34,18 @@ func Max[T Element](x, y T) T {
 // 计算超时时间 根据并发数，合理缩短整体超时时间
 func calculateTimeout(imageNum, batchSize, routines int, baseTimeout time.Duration) time.Duration {
 	times := (imageNum + batchSize - 1) / batchSize
-	return baseTimeout * time.Duration((times+routines-1)/routines)
+	if imageNum > 100 {
+		baseTimeout = baseTimeout * 2
+	}
+	timeoutFactor := float64(times) / float64(routines)
+	if timeoutFactor < 1 {
+		timeoutFactor = 1
+	}
+	timeout := time.Duration(float64(baseTimeout) * timeoutFactor)
+	if timeout < baseTimeout {
+		return baseTimeout
+	}
+	return timeout
 }
 
 // GenerateUUID 生成uuid

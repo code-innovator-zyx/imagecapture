@@ -194,27 +194,37 @@ func (bc *BingCapture) searchBing(ctx context.Context, url string, collector cha
 		f = func(n *html.Node) {
 			if n.Type == html.ElementNode && n.Data == "a" {
 				for _, attr := range n.Attr {
-					if attr.Key == "class" && attr.Val == "iusc" {
-						for _, attr := range n.Attr {
-							if attr.Key == "m" {
-								byteData := []byte(attr.Val)
-								wg.Add(1)
-								pool.Submit(func() {
-									defer func() {
-										wg.Done()
-									}()
-									var bf BingFormat
+					select {
+					case <-ctx.Done():
+						return
+					default:
+						if attr.Key == "class" && attr.Val == "iusc" {
+							for _, attr := range n.Attr {
+								select {
+								case <-ctx.Done():
+									return
+								default:
+									if attr.Key == "m" {
+										byteData := []byte(attr.Val)
+										wg.Add(1)
+										pool.Submit(func() {
+											defer func() {
+												wg.Done()
+											}()
+											var bf BingFormat
 
-									err = json.Unmarshal(byteData, &bf)
-									if err != nil {
-										return
+											err = json.Unmarshal(byteData, &bf)
+											if err != nil {
+												return
+											}
+											if !bc.checkUseful(bf.Murl) {
+												collector <- bf.Turl
+												return
+											}
+											collector <- bf.Murl
+										})
 									}
-									if !bc.checkUseful(bf.Murl) {
-										collector <- bf.Turl
-										return
-									}
-									collector <- bf.Murl
-								})
+								}
 							}
 						}
 					}
@@ -233,7 +243,7 @@ func (bc *BingCapture) checkUseful(url string) bool {
 	if url == "" {
 		return false
 	}
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("HEAD", url, nil)
 	if err != nil {
 		return false
 	}

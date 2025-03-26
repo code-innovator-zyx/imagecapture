@@ -68,12 +68,13 @@ func Test_Bing(t *testing.T) {
 	capture := imagecapture.NewBingCapture(3)
 	t.Run("SearchImages", func(t *testing.T) {
 		start := time.Now()
-		urls, err := capture.SearchImages("美女", 20)
+		urls, err := capture.SearchImages("石英", 20)
 		if err != nil {
 			t.Error(err.Error())
 			return
 		}
 		fmt.Println("search cost", time.Since(start).Milliseconds())
+		fmt.Println(urls)
 		t.Log(len(urls))
 	})
 	t.Run("RangeImages", func(t *testing.T) {

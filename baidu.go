@@ -180,12 +180,16 @@ func (bc *BaiduCapture) SearchImages(keyword string, maxNumber int, opts ...Opti
 	batchSize := 60
 	var collector = make(chan string, Min(maxNumber, batchSize))
 	// 设置单个任务的基础超时（例如 3 秒）
-	baseTimeout := 3 * time.Second
+	baseTimeout := 5 * time.Second
 	timeout := calculateTimeout(maxNumber, batchSize, bc.routines, baseTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	increment := 0
+	if maxNumber > batchSize/2 {
+		increment = batchSize
+	}
 	var wg sync.WaitGroup
 	defer cancel()
-	for i := 0; i < maxNumber; i += batchSize {
+	for i := 0; i < maxNumber+increment; i += batchSize {
 		q.Set("pn", strconv.Itoa(i))
 		queryURL := fmt.Sprintf("%s?%s", bc.baseUrl, q.Encode())
 		wg.Add(1)
@@ -221,7 +225,6 @@ SELECT:
 				break SELECT
 			}
 		case <-ctx.Done():
-			// 超时了,但是爬到的数据还是要给你的
 			break SELECT
 		}
 	}
@@ -229,6 +232,7 @@ SELECT:
 	for url := range imageUrls {
 		urls = append(urls, url)
 	}
+
 	return urls, nil
 }
 
@@ -249,7 +253,6 @@ func (bc *BaiduCapture) searchBaidu(ctx context.Context, url string, collector c
 		var resp *http.Response
 		for {
 			if try >= 3 {
-				fmt.Println("retry max times but err:", err.Error())
 				return
 			}
 			resp, err = bc.client.Do(req)
@@ -268,19 +271,22 @@ func (bc *BaiduCapture) searchBaidu(ctx context.Context, url string, collector c
 		var data bytes.Buffer
 		_, err = io.Copy(&data, reader)
 		if err != nil {
-			fmt.Println("failed to close reader:", err)
 			return
 		}
 		err = resp.Body.Close()
 		if err != nil {
-			fmt.Println("failed to close body")
 			return
 		}
 		pattern := `"objURL":"(.*?)",`
 		re := regexp.MustCompile(pattern)
 		for _, data := range re.FindAllStringSubmatch(data.String(), -1) {
-			if len(data) > 1 {
-				collector <- data[1]
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				if len(data) > 1 {
+					collector <- data[1]
+				}
 			}
 		}
 		return

@@ -44,6 +44,8 @@ type downloader struct {
 	header     http.Header
 	bufferSize int // 缓冲区大小
 	md5        hash.Hash
+	connPool   *sync.Pool    // 连接池
+	timeout    time.Duration // 请求超时时间
 }
 
 // newDownloader 创建新的下载器
@@ -53,6 +55,19 @@ func newDownloader(client *http.Client, h map[string]string) Downloader {
 		retryTimes: 3,
 		bufferSize: 64 * 1024, //64kb
 		header:     make(http.Header, len(h)),
+		timeout:    10 * time.Second,
+		connPool: &sync.Pool{
+			New: func() interface{} {
+				return &http.Client{
+					Timeout: 10 * time.Second,
+					Transport: &http.Transport{
+						MaxIdleConns:        100,
+						MaxIdleConnsPerHost: 10,
+						IdleConnTimeout:     90 * time.Second,
+					},
+				}
+			},
+		},
 	}
 	for k, v := range h {
 		handle.header.Set(k, v)
@@ -66,37 +81,49 @@ func (d *downloader) get(url string, newWriter func(string) (io.Writer, error), 
 		return err
 	}
 	req.Header = d.header
+
+	// 使用连接池中的client
+	client := d.connPool.Get().(*http.Client)
+	defer d.connPool.Put(client)
+
+	// 设置请求上下文和超时
+	ctx, cancel := context.WithTimeout(context.Background(), d.timeout)
+	defer cancel()
+	req = req.WithContext(ctx)
+
 	try := 0
 	var resp *http.Response
 	for {
 		if try >= d.retryTimes {
 			return ErrMaxRetryExceeded
 		}
-		resp, err = d.client.Do(req)
+		resp, err = client.Do(req)
 		if err == nil {
 			break
 		}
 		try += 1
-	}
-	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("download [%s] failed: %s\n", url, resp.Status)
-		return fmt.Errorf("download [%s] failed: %s", url, resp.Status)
-	}
-	defer resp.Body.Close()
-	imageReader, err := NewImageReader(resp.Body, mdCallback != nil)
-	if err != nil {
-		return err
-	}
-	writer, err := newWriter(imageReader.Type())
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(writer, imageReader)
-	if err != nil {
-		return err
-	}
-	if mdCallback != nil {
-		mdCallback(imageReader.Md5())
+		time.Sleep(time.Duration(try) * 100 * time.Millisecond)
+		if resp.StatusCode != http.StatusOK {
+			fmt.Printf("download [%s] failed: %s\n", url, resp.Status)
+			return fmt.Errorf("download [%s] failed: %s", url, resp.Status)
+		}
+		defer resp.Body.Close()
+		imageReader, err := NewImageReader(resp.Body, mdCallback != nil)
+		if err != nil {
+			return err
+		}
+		writer, err := newWriter(imageReader.Type())
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(writer, imageReader)
+		if err != nil {
+			return err
+		}
+		if mdCallback != nil {
+			mdCallback(imageReader.Md5())
+		}
+		return nil
 	}
 	return nil
 }
