@@ -73,7 +73,7 @@ func (bc *BingCapture) RangeImages(keyword string, callBack func([]string) bool,
 	// 任务超时时间
 	timeout := 3 * time.Second
 	// 必应拿不到这个数据
-	total := 10000
+	total := batchSize * 10
 	var collector = make(chan string, batchSize)
 	for i := 0; i < total; i += batchSize {
 		q.Set("first", strconv.Itoa(i))
@@ -88,7 +88,6 @@ func (bc *BingCapture) RangeImages(keyword string, callBack func([]string) bool,
 		for {
 			select {
 			case <-ctx.Done():
-				// 超时了
 				break WAIT
 			case url, ok := <-collector:
 				if !ok {
@@ -101,7 +100,6 @@ func (bc *BingCapture) RangeImages(keyword string, callBack func([]string) bool,
 		if !callBack(urls) {
 			return nil
 		}
-		collector = make(chan string, batchSize)
 
 	}
 	return nil
@@ -120,12 +118,16 @@ func (bc *BingCapture) SearchImages(keyword string, maxNumber int, opts ...Optio
 	batchSize := 35
 	var collector = make(chan string, maxNumber)
 	// 设置单个任务的基础超时（例如 3 秒）
-	baseTimeout := 10 * time.Second
+	baseTimeout := 5 * time.Second
 	timeout := calculateTimeout(maxNumber, batchSize, bc.routines, baseTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	var wg sync.WaitGroup
 	defer cancel()
-	for i := 0; i < maxNumber; i += batchSize {
+	increment := 0
+	if maxNumber > batchSize/2 {
+		increment = batchSize
+	}
+	for i := 0; i < maxNumber+increment; i += batchSize {
 		q.Set("first", strconv.Itoa(i))
 		queryURL := fmt.Sprintf("%s?%s", bc.baseUrl, q.Encode())
 		wg.Add(1)
@@ -145,7 +147,6 @@ SELECT:
 		select {
 		case url, ok := <-collector:
 			if !ok {
-				// 所有goroutine 执行完了，但是数量不够，任然要返回的
 				break SELECT
 			}
 			if _, ok := filter[url]; !ok {
@@ -156,7 +157,6 @@ SELECT:
 				break SELECT
 			}
 		case <-ctx.Done():
-			// 超时了,但是爬到的数据还是要给你的
 			break SELECT
 		}
 	}

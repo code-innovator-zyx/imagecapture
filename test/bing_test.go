@@ -74,7 +74,7 @@ func Test_Bing(t *testing.T) {
 			return
 		}
 		fmt.Println("search cost", time.Since(start).Milliseconds())
-		fmt.Println(urls)
+		//fmt.Println(urls)
 		t.Log(len(urls))
 	})
 	t.Run("RangeImages", func(t *testing.T) {

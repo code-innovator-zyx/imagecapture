@@ -89,12 +89,11 @@ func (bc *BaiduCapture) RangeImages(keyword string, callBack func([]string) bool
 	if err != nil {
 		return err
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
 	collector := make(chan string, batchSize)
 	defer close(collector)
 	for i := 0; i < total; i += batchSize {
 		q.Set("pn", strconv.Itoa(i))
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		queryURL := fmt.Sprintf("%s?%s", bc.baseUrl, q.Encode())
 		// 在 Goroutine 中执行爬取任务
 		go func(ctx context.Context, url string) {
@@ -106,7 +105,6 @@ func (bc *BaiduCapture) RangeImages(keyword string, callBack func([]string) bool
 		for {
 			select {
 			case <-ctx.Done():
-				// 如果 context 被取消，退出当前分页的处理
 				break WAIT
 			case url, ok := <-collector:
 				if !ok {
@@ -116,10 +114,9 @@ func (bc *BaiduCapture) RangeImages(keyword string, callBack func([]string) bool
 				urls = append(urls, url)
 			}
 		}
-
-		// 如果回调函数返回 false，则取消所有任务并退出
+		cancel()
 		if !callBack(urls) {
-			cancel() // 通知所有 Goroutine 停止
+
 			return nil
 		}
 	}
@@ -206,6 +203,7 @@ func (bc *BaiduCapture) SearchImages(keyword string, maxNumber int, opts ...Opti
 		}
 	}
 	var imageUrls = make(map[string]struct{}, maxNumber)
+	var urls = make([]string, 0, maxNumber)
 	go func() {
 		wg.Wait()
 		close(collector)
@@ -224,21 +222,17 @@ SELECT:
 					break Next
 				}
 			}
-			imageUrls[url] = struct{}{}
-			if len(imageUrls) >= maxNumber {
-				// 主动退出
-				//cancel()
+			if _, ok := imageUrls[url]; !ok {
+				imageUrls[url] = struct{}{}
+				urls = append(urls, url)
+			}
+			if len(urls) >= maxNumber {
 				break SELECT
 			}
 		case <-ctx.Done():
 			break SELECT
 		}
 	}
-	var urls = make([]string, 0, len(imageUrls))
-	for url := range imageUrls {
-		urls = append(urls, url)
-	}
-
 	return urls, nil
 }
 
