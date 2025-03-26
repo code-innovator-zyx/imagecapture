@@ -175,7 +175,6 @@ func (bc *BingCapture) searchBing(ctx context.Context, url string, collector cha
 		for k, v := range bc.headers {
 			req.Header.Set(k, v)
 		}
-
 		// 请求并解析 HTML
 		resp, err := bc.client.Do(req)
 		if err != nil {

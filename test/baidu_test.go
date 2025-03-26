@@ -21,7 +21,7 @@ import (
 func Test_BaiduCapture(t *testing.T) {
 	capture := imagecapture.NewBaiduCapture(3)
 	t.Run("SearchImages", func(t *testing.T) {
-		urls, err := capture.SearchImages("石英", 5, imagecapture.WithImageSize(imagecapture.ImageSize_LARGE))
+		urls, err := capture.SearchImages("石英", 60, imagecapture.WithImageSize(imagecapture.ImageSize_LARGE))
 		if err != nil {
 			t.Error(err.Error())
 			return

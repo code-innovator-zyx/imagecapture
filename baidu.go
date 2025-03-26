@@ -84,41 +84,44 @@ func (bc *BaiduCapture) RangeImages(keyword string, callBack func([]string) bool
 		option(&q)
 	}
 	batchSize := 60
-	// 任务超时时间
 	timeout := 3 * time.Second
 	total, err := bc.queryTotalNums(q)
 	if err != nil {
 		return err
 	}
-	var collector = make(chan string, batchSize)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	collector := make(chan string, batchSize)
+	defer close(collector)
 	for i := 0; i < total; i += batchSize {
 		q.Set("pn", strconv.Itoa(i))
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		queryURL := fmt.Sprintf("%s?%s", bc.baseUrl, q.Encode())
-		go func() {
-			defer close(collector)
-			bc.searchBaidu(ctx, queryURL, collector)
-		}()
-		var urls = make([]string, 0, batchSize)
+		// 在 Goroutine 中执行爬取任务
+		go func(ctx context.Context, url string) {
+			bc.searchBaidu(ctx, url, collector)
+		}(ctx, queryURL)
+		// 收集当前分页的图片 URL
+		urls := make([]string, 0, batchSize)
 	WAIT:
 		for {
 			select {
 			case <-ctx.Done():
-				// 超时了
+				// 如果 context 被取消，退出当前分页的处理
 				break WAIT
 			case url, ok := <-collector:
 				if !ok {
+					// 通道已关闭，退出
 					break WAIT
 				}
 				urls = append(urls, url)
 			}
 		}
-		cancel()
+
+		// 如果回调函数返回 false，则取消所有任务并退出
 		if !callBack(urls) {
+			cancel() // 通知所有 Goroutine 停止
 			return nil
 		}
-		collector = make(chan string, batchSize)
-
 	}
 	return nil
 }
@@ -183,12 +186,13 @@ func (bc *BaiduCapture) SearchImages(keyword string, maxNumber int, opts ...Opti
 	baseTimeout := 5 * time.Second
 	timeout := calculateTimeout(maxNumber, batchSize, bc.routines, baseTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 	increment := 0
 	if maxNumber > batchSize/2 {
 		increment = batchSize
 	}
 	var wg sync.WaitGroup
-	defer cancel()
+
 	for i := 0; i < maxNumber+increment; i += batchSize {
 		q.Set("pn", strconv.Itoa(i))
 		queryURL := fmt.Sprintf("%s?%s", bc.baseUrl, q.Encode())
@@ -222,6 +226,8 @@ SELECT:
 			}
 			imageUrls[url] = struct{}{}
 			if len(imageUrls) >= maxNumber {
+				// 主动退出
+				//cancel()
 				break SELECT
 			}
 		case <-ctx.Done():
@@ -238,57 +244,50 @@ SELECT:
 
 // 获取图片
 func (bc *BaiduCapture) searchBaidu(ctx context.Context, url string, collector chan<- string) {
-	select {
-	case <-ctx.Done():
-		return
-	default:
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			return
-		}
-		for k, v := range bc.headers {
-			req.Header.Set(k, v)
-		}
-		try := 0
-		var resp *http.Response
-		for {
-			if try >= 3 {
-				return
-			}
-			resp, err = bc.client.Do(req)
-			if err == nil {
-				break
-			}
-			try += 1
-		}
-		// Handling GZIP compressed responses
-		defer resp.Body.Close()
-		reader, err := gzip.NewReader(resp.Body)
-		if err != nil {
-			return
-		}
-		defer reader.Close()
-		var data bytes.Buffer
-		_, err = io.Copy(&data, reader)
-		if err != nil {
-			return
-		}
-		err = resp.Body.Close()
-		if err != nil {
-			return
-		}
-		pattern := `"objURL":"(.*?)",`
-		re := regexp.MustCompile(pattern)
-		for _, data := range re.FindAllStringSubmatch(data.String(), -1) {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				if len(data) > 1 {
-					collector <- data[1]
-				}
-			}
-		}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
 		return
 	}
+	for k, v := range bc.headers {
+		req.Header.Set(k, v)
+	}
+	try := 0
+	var resp *http.Response
+	for {
+		if try >= 3 {
+			return
+		}
+		resp, err = bc.client.Do(req)
+		if err == nil {
+			break
+		}
+		try += 1
+	}
+	var reader io.ReadCloser
+	if resp.Header.Get("Content-Encoding") == "gzip" {
+		reader, err = gzip.NewReader(resp.Body)
+	} else {
+		reader = resp.Body
+	}
+	defer reader.Close()
+	var data bytes.Buffer
+	_, err = io.Copy(&data, reader)
+	if err != nil {
+		return
+	}
+	pattern := `"objURL":"(.*?)",`
+	re := regexp.MustCompile(pattern)
+	for _, data := range re.FindAllStringSubmatch(data.String(), -1) {
+		select {
+		case <-ctx.Done():
+			fmt.Println("cancel")
+			return
+		default:
+			if len(data) > 1 {
+				collector <- data[1]
+			}
+		}
+	}
+	return
+
 }
