@@ -274,7 +274,6 @@ func (bc *BaiduCapture) searchBaidu(ctx context.Context, url string, collector c
 	for _, data := range re.FindAllStringSubmatch(data.String(), -1) {
 		select {
 		case <-ctx.Done():
-			fmt.Println("cancel")
 			return
 		default:
 			if len(data) > 1 {
